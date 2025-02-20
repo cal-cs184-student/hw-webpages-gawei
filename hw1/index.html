@@ -1,8 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
+<html>
 	<head>
+		<script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=default'></script>
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-	<style>
+		<style>
 			h1 {
 				text-align: center;
 			}
@@ -22,68 +22,204 @@
 
 			body {
 				font-family: 'Inter', sans-serif;
-				line-height: 1.4;
-				color: #32323a;
-				background-color: #ffffff;
-				display: flex;
-				flex-direction: column;
-				justify-content: center;
-				align-items: center;
-				width: 40%;
-				height: 100%;
-				margin: 0;
-				position: absolute;
-				left: 50%;
-				transform: translateX(-50%);
 			}
-
-		@media (max-width: 600px) {
-			body {
-				width: 100%;
-				left: 0;
-				transform: none;
-			}
-		}
-
-		a {
-			text-decoration: none;
-			color: #0057A8;
-		}
-
-		a:hover {
-			color: #8E018E !important;
-			text-decoration: underline;
-		}
-	</style>
-	<meta http-equiv="content-type" content="text/html; charset=utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CS184/284A Homework Webpages</title>
+		</style>
 	</head>
 	<body>
-		<div class="wrapper">
-			<header>
-				<h1 style="align-self:flex-end;">CS184/284A Homework Webpages</h1>
-			</header>
-			<main>
-				<div class="content">
-					<ul>
-						<li><a href="/hw1/index.html">Homework 1</a></li>
-						<li><a href="/hw2/index.html">Homework 2</a></li>
-						<li><a href="/hw3/index.html">Homework 3</a></li>
-						<li><a href="/hw4/index.html">Homework 4</a></li>
-					</ul>
-				</div>
-			</main>
+		<div class="container">
+		<h1>CS184/284A Spring 2025 Homework 1 Write-Up</h1>
+		<div style="text-align: center;">Names: Grace Wei</div>
+
+		<br>
+
+		Link to webpage: (TODO) <a href="https://cs184.eecs.berkeley.edu/sp25">cs184.eecs.berkeley.edu/sp25</a>
+		
+		<br>
+
+		Link to GitHub repository: <a href="https://github.com/cal-cs184-student/sp25-hw1-gw.git">https://github.com/cal-cs184-student/sp25-hw1-gw.git</a>
+
+		<!--
+		We've already added one heading per task, to make your write-up as navigable when grading. Please fit your write-up within these sections!
+		-->
+
+		<h2>Overview</h2>
+		Overall, I think this project gave a very good overview of the end-to-end process in rasterizing a triangle while preventing aliasing using anti-aliasing methods like supersampling, pixel sampling, and level sampling.
+		After this project, I think I understand why it was mentioned in class that this course is all about sampling!
+
+		<h2>Task 1: Drawing Single-Color Triangles</h2>
+		
+		In Task 1, I rasterized triangles by sampling whether each the center of each pixel within the bounding box of the triangle is located within the triangle.
+		The bounding box of the triangle is determined by finding the four vertices of the smallest rectangle that can enclose the triangle.
+		These four vertices are (min_x_pos, min_y_pos), (min_x_pos, max_y_pos), (max_x_pos, min_y_pos), and (max_x_pos, max_y_pos). 
+		min_x_pos and min_y_pos are found by taking the floor function of the minimum x and y coordinates of the triangle.
+		max_x_pos and max_y_pos are found by taking the ceiling function of the maximum x and y coordinates of the triangle. 
+		Doing this ensures that our bounding box includes all vertices of the triangle.
+		Then, we loop through only the pixels that are contained within this bounding box.
+		This ensures our algorithm is no worse than one that checks each sample within the bounding box.
+		Furthermore, we ensure that the winding order of the triangle vertices (counter-clockwise or clockwise) will not affect the results.
+		We do this by first calculating the cross product of two consecutive edges. If this cross product is negative, the winding order is clockwise.
+		If the winding order is clockwise, we swap vertices 1 and 2 to ensure the winding order is always counter-clockwise.
+		For each pixel within the bounding box, we check if the center of that pixel is located in the triangle by performing three line tests, going from vertex to vertex counter-clockwise.
+		Each line test consists of calculating the dot product of the vector normal to the edge and the vector from the starting vertex to the center of the pixel.
+		If this dot product is greater than or equal to 0, this means the center of the pixel is either on the edge or "above" it (and hence the line test "passes"). 
+		If all three line tests pass (one for each edge), the pixel is drawn to the frame buffer via the fill_pixel helper function.
+		<div style="display: flex; flex-direction: column; align-items: center;">
+		<img src="images/task_1.png" width="400px"/>
+		<figcaption>Test4 with default viewing parameters and pixel inspector centered on jaggies.</figcaption>
+		</div>
+		
+		<h2>Task 2: Antialiasing by Supersampling</h2>
+		My supersampling algorithm relies on effective transformation from the original frame buffer pixel values to the new, resized sampling buffer indices. 
+		The resized sampling buffer indices are dependent on the sample_rate, with the new indices a multiple of the sqrt(sample_rate). 
+		For example, if the sample_rate is 9, then the original pixel values 0, 1, 2, 3, 4 would be transformed to 0, 3, 6, 9, 12.
+		The remaining sample buffer indices (1, 2, 4, 5, 7, 8, 10, 11) will lie equidistant between the original pixel values. 
+		
+		First, I define sample as sqrt(sample_rate). From Task 1, I transform the rectangle bounding box in pixel values to the rectangular bounding box in sample buffer indices.
+		For example, for the lowest x index, I take the floor function of the minimum x value of the triangle times sample.
+		For sampling each "pixel" in the sample buffer, I do a transformation from the buffer index to the frame buffer value in continuous space. 
+		For example, the position of x is determined by the (sample index / sample) + (0.5 * sample). 
+
+		To account for when the size of the frame buffer changes or when the supersampling rate changes, I make sure to resize the sample buffer to the correct size.
+		I also make sure to clear the sample buffer after each resizing. 
+
+		Finally, to resolve my sample buffer into the frame buffer (and draw the supersampled triangle to screen), I loop through each frame buffer pixel.
+		For each frame buffer pixel, I find the indices in the sample buffer that correspond to the frame buffer pixel, and compute the average color across the relevant sample buffer indices.
+		Then, the average color is drawn to the frame buffer.
+
+		Supersampling is useful because it allows pixels to take on an average value, thus removing the high frequency data along the edges of an image. 
+		In essence, because it is blurring out the edge, it helps to antialias the image.
+		I used supersampling here to antialias my triangles by averaging out the high frequency data at the triangle edges.
+
+		Below, we shot test4.svg with different sample rates, with the pixel inspector focused on a skinny part of the red triangle. 
+		We observe that as the supersampling rate increases, the triangle edge becomes more and more blurry, with less jagged lines.
+		This is because each pixel becomes averaged across more "sub-pixels" from the supersampling, thus helping to antialias the triangle edge.
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/task_2-1.png" width="400px"/>
+				  <figcaption>test4.svg with sample rate 1.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/task_2-2.png" width="400px"/>
+				  <figcaption>test4.svg with sample rate 4.</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/task_2-3.png" width="400px"/>
+				  <figcaption>test4.svg with sample rate 9.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/task_2-4.png" width="400px"/>
+				  <figcaption>test4.svg with sample rate 16.</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		
+		<h2>Task 3: Transforms</h2>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<img src="images/task_3.png" width="400px"/>
+			<figcaption>Cubeman flying/falling through the air, superman style.</figcaption>
+			</div>
+
+		I was trying to have cubeman rotated, with legs and arms pointing / extended outwards. 
+		This gives the effect of cubeman flying through the air, with one arm extended in front and one behind, like the superman pose.
+
+		<h2>Task 4: Barycentric coordinates</h2>
+		Barycentric coordinates is fractional coordinates for triangles, allowing for a continuous interpolation of vertex values at triangle points between the vertices.
+		A set of barycentric coordinates specifies a 2D position in the triangle. 
+		For example, the figure below shows how barycentric coordinates can help interpolate colors between the red, green, and blue vertices of a triangle.
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<img src="images/task_4-1.png" width="400px"/>
+			<figcaption>Triangle with red, green, and blue vertices and colors interpolated in between</figcaption>
+			</div>
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<img src="images/task_4.png" width="400px"/>
+			<figcaption>test7.svg with default viewing parameters and sample rate 1</figcaption>
+			</div>
+
+		<h2>Task 5: "Pixel sampling" for texture mapping</h2>
+		Pixel sampling is used to find which point on the texture map to sample the color for the rasterization of the triangle onto the screen. 
+		There are two types of pixel sampling methods implemented in this project: nearest neighbor sampling and bilinear sampling. 
+		For nearest neighbor sampling, I sampled the value of the texel that is closest to the provided u,v value (multipled by the width/height to obtain the texel value).
+		For bilinear sampling, I took the four texels closest to the exact "texel" value and did three linear interpolations to interpolate between texels.
+
+		To find which texel to sample, I use barycentric coordinates on the xyz values of the sample buffer to interpolate between provided u,v values of the triangle.
+		The interpolated u,v value is then provided to either nearest or bilinear sampling to sample the texture map.
+		Below, I show nearest sampling at 1 sample per pixel, nearest sampling at 16 samples per pixel, bilinear sampling at 1 sample per pixel, and bilinear sampling at 16 samples per pixel.
+		We observe that a higher number of samples per pixel shows less aliasing, and that bilinear sampling appears to be smoother than nearest sampling.
+		The differences are most noticeable for lower samples per pixel and at the edges of the object (tower in this case), where there is more of a color gradient in the blinear case as opposed to the nearest neighbor case.
+
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/task5-1.png" width="400px"/>
+				  <figcaption>Nearest neighbor sampling, sample rate 1.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/task5-2.png" width="400px"/>
+				  <figcaption>Bilinear sampling, sample rate 1.</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/task5-3.png" width="400px"/>
+				  <figcaption>Nearest neighbor sampling, sample rate 16.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/task5-4.png" width="400px"/>
+				  <figcaption>Bilinear sampling, sample rate 16.</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<h2>Task 6: "Level Sampling" with mipmaps for texture mapping</h2>
+		Level sampling is a way to use different texture resolutions for different pixels in an image to avoid aliasing.
+		In this project, I use implement level sampling by employing a mipmap, which stores texture images of different resolution in levels.
+		For each pixel, I use the formula provided in class to compute the desired level of the mipmap. 
+		If the level sampling method is linear, I interpolate between the two levels.
+		If the level sampling is nearest, I simply use the nearest level.
+		There exist tradeoffs between pixel sampling, level sampling, and supersampling when it comes to speed, memory usage, and antialiasing power.
+		Pixel sampling is the fastest among the three with the lowest memory usage, because calculations are only performed on existing selected pixels.
+		However, it is also the worst at antialiasing.
+		Level sampling is relatively fast (but slower than pixel sampling), but uses more memory due to storage of the mipmap (4/3 the size of full resolution image).
+		However, it is very effective at antialiasing, with some overblurring that may occur at minified distances.
+		Finally, supersampling is the slowest and consumes the most memory of the three, because each pixel requires more computations than before, and that data must be stored.
+		However, supersampling is the most effective among the three at antialiasing.
+
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/task6-1.png" width="400px"/>
+				  <figcaption>L_ZERO, P_NEAREST.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/task6-2.png" width="400px"/>
+				  <figcaption>L_ZERO, P_LINEAR.</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/task6-3.png" width="400px"/>
+				  <figcaption>L_NEAREST, P_NEAREST.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/task6-4.png" width="400px"/>
+				  <figcaption>L_NEAREST, P_LINEAR.</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
 		</div>
 	</body>
-	<script>
-		var links = document.body.getElementsByTagName("a")
-		var a = window.location.href.indexOf(".io")
-		var repo_name = window.location.href.substring(a+3)
-		for(var i = 0; i < links.length; i++){
-			var link = links[i]
-			var actual_name = link.href.substring(link.href.indexOf(".io")+4)
-			link.href = repo_name + actual_name
-		}
-	</script>
 </html>
